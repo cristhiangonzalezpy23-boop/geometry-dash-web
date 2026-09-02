@@ -36,12 +36,12 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // Assets
+    // Assets adaptados a tus nombres de archivo en GitHub
     const imgFondo = new Image(); imgFondo.src = 'fondo.jpeg.jpeg';
     const imgJugador = new Image(); imgJugador.src = 'cubo.jpeg.jpeg';
     const imgPincho = new Image(); imgPincho.src = 'pincho.jpeg.jpeg';
 
-    // Audio Synthesizer
+    // Audio Synthesizer (estilo 8-bit)
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let audioCtx;
     let musicaIniciada = false;
@@ -52,11 +52,12 @@
         if (musicaIniciada) return;
         
         musicaIniciada = true;
+        // Secuencia retro de fondo
         const notas = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63];
         let paso = 0;
 
         setInterval(() => {
-            if (gameOver || !juegoIniciado) return;
+            if (gameOver || !juegoIniciado || victoria) return;
             try {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
@@ -81,36 +82,36 @@
     const sueloY = 310;
     const velocidadJuego = 5.5;
 
-    // Jugador
+    // Jugador (Cubo)
     const cubo = {
         x: 100,
         y: sueloY,
         ancho: 40,
         alto: 40,
         vy: 0,
-        gravedad: 0.85,
-        fuerzaSalto: -13.5,
+        gravedad: 0.88, // Ajuste para mayor precisión
+        fuerzaSalto: -13.8, // Ajuste para triple pincho
         enSuelo: true
     };
 
-    // --- MAPA CORREGIDO (SECCIÓN DEL 56% FLUIDA) ---
+    // --- DISEÑO DE NIVEL FIJO Y JUGABLE ---
     const mapaNivelOriginal = [
         // Inicio
         { x: 700, tipo: 'pincho' },
         { x: 1100, tipo: 'pincho' },
         { x: 1400, tipo: 'pincho' }, { x: 1435, tipo: 'pincho' },
         
-        // Plataforma individual
+        // Primera plataforma individual
         { x: 1800, tipo: 'bloque', alto: 40 },
         
-        // Triple pincho con Esfera corrida a la izquierda
+        // TRIPLE PINCHO CON ESFERA (Corrida a la izquierda: x=2150)
         { x: 2150, y: sueloY - 70, tipo: 'esfera' },
         { x: 2200, tipo: 'pincho' }, { x: 2235, tipo: 'pincho' }, { x: 2270, tipo: 'pincho' },
 
-        // SECCIÓN DEL 56% CORREGIDA: Escalera continua fácil de subir
+        // SECCIÓN DEL 56% CORREGIDA (Bloques pegados continua)
         { x: 2650, tipo: 'bloque', alto: 40 },
         { x: 2700, tipo: 'bloque', alto: 40 },
-        { x: 2750, tipo: 'bloque', alto: 80 }, // Segundo escalón pegado
+        { x: 2750, tipo: 'bloque', alto: 80 },
         { x: 2800, tipo: 'bloque', alto: 80 },
         { x: 2950, tipo: 'pincho' },
         
@@ -142,15 +143,16 @@
             cubo.vy = cubo.fuerzaSalto;
             cubo.enSuelo = false;
         } else {
+            // Salto en esfera flotante
             obstaculos.forEach(obs => {
                 if (obs.tipo === 'esfera' && !obs.usada) {
-                    const centroX = obs.x + 20;
-                    const centroY = obs.y + 20;
+                    const centroEsferaX = obs.x + 20;
+                    const centroEsferaY = obs.y + 20;
                     const cuboCentroX = cubo.x + cubo.ancho/2;
                     const cuboCentroY = cubo.y + cubo.alto/2;
                     
-                    const dist = Math.hypot(cuboCentroX - centroX, cuboCentroY - centroY);
-                    if (dist < 55) {
+                    const dist = Math.hypot(cuboCentroX - centroEsferaX, cuboCentroY - centroEsferaY);
+                    if (dist < 58) { // Mayor radio para que sea fácil tocarla
                         cubo.vy = cubo.fuerzaSalto * 1.1;
                         obs.usada = true;
                     }
@@ -164,63 +166,73 @@
 
         avanceNivel += velocidadJuego;
 
-        // Física Cubo
+        // Física Cubo (Pre-cálculo)
         cubo.vy += cubo.gravedad;
-        cubo.y += cubo.vy;
+        let proximoY = cubo.y + cubo.vy;
+        cubo.enSuelo = false;
 
-        let pisandoPlataforma = false;
+        let pisandoAlgo = false;
 
-        // Suelo normal
-        if (cubo.y >= sueloY) {
-            cubo.y = sueloY;
+        // Comprobar colisión con el suelo normal
+        if (proximoY >= sueloY) {
+            proximoY = sueloY;
             cubo.vy = 0;
             cubo.enSuelo = true;
-            pisandoPlataforma = true;
+            pisandoAlgo = true;
         }
 
-        // Mover y procesar elementos del mapa
-        obstaculos.forEach(obs => {
-            obs.x = obs.posXOriginal - avanceNivel;
+        // --- SISTEMA DE FÍSICA Y COLISIONES CORREGIDO ---
+        for (let i = 0; i < obstaculos.length; i++) {
+            let obs = obstaculos[i];
+            obs.x = obs.posXOriginal - avanceNivel; // Posición actual en pantalla
+
+            if (obs.x > cubo.x + cubo.ancho + 50 || obs.x < cubo.x - 100) continue; // Optimización
 
             if (obs.tipo === 'pincho') {
+                // Caja de colisión reducida y ajustada triangularmente (10px margen lateral superior)
+                const margenLateral = 10;
                 if (
-                    cubo.x + 10 < obs.x + 35 &&
-                    cubo.x + cubo.ancho - 10 > obs.x &&
-                    cubo.y + 10 < sueloY + 40 &&
-                    cubo.y + cubo.alto > sueloY
+                    cubo.x + margenLateral < obs.x + 35 &&
+                    cubo.x + cubo.ancho - margenLateral > obs.x &&
+                    proximoY + 8 < sueloY + 40 &&
+                    proximoY + cubo.alto > sueloY
                 ) {
                     gameOver = true;
+                    break;
                 }
             } 
             else if (obs.tipo === 'bloque') {
                 const bloqueY = sueloY + 40 - obs.alto;
-                if (
-                    cubo.x + cubo.ancho > obs.x + 5 &&
-                    cubo.x < obs.x + 45 &&
-                    cubo.y + cubo.alto > bloqueY &&
-                    cubo.y < sueloY + 40
-                ) {
-                    // Caer arriba de la plataforma
-                    if (cubo.vy >= 0 && cubo.y + cubo.alto - cubo.vy <= bloqueY + 16) {
-                        cubo.y = bloqueY - cubo.alto;
+                
+                // Comprobar si está ENFRENTADO horizontalmente
+                const colisionH = (cubo.x + cubo.ancho > obs.x + 2) && (cubo.x < obs.x + 48);
+                const colisionV = (proximoY + cubo.alto > bloqueY + 4) && (proximoY < sueloY + 40);
+
+                if (colisionH && colisionV) {
+                    // Caer ARRIBA de la plataforma
+                    if (cubo.vy >= 0 && proximoY + cubo.alto - cubo.vy <= bloqueY + 16) {
+                        proximoY = bloqueY - cubo.alto;
                         cubo.vy = 0;
                         cubo.enSuelo = true;
-                        pisandoPlataforma = true;
+                        pisandoAlgo = true;
                     } else {
-                        gameOver = true; // Pared frontal
+                        // Choque lateral (Muerte instantánea)
+                        gameOver = true;
+                        break;
                     }
                 }
             }
             else if (obs.tipo === 'meta') {
                 if (cubo.x >= obs.x) {
                     victoria = true;
+                    break;
                 }
             }
-        });
-
-        if (!pisandoPlataforma && cubo.y < sueloY) {
-            cubo.enSuelo = false;
         }
+
+        if (gameOver) return; // Parar físicas al instante
+
+        cubo.y = proximoY; // Aplicar posición final
     }
 
     function dibujar() {
@@ -231,7 +243,7 @@
             ctx.drawImage(imgFondo, 0, 0, canvas.width, canvas.height);
         }
 
-        // Suelo Neon
+        // Suelo Neon (Línea celeste)
         ctx.strokeStyle = '#00ffff';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -241,11 +253,13 @@
 
         // Renderizar Obstáculos
         obstaculos.forEach(obs => {
+            // Solo dibujar si está cerca de la pantalla
             if (obs.x > -100 && obs.x < canvas.width + 100) {
                 if (obs.tipo === 'pincho') {
                     if (imgPincho.complete && imgPincho.naturalWidth !== 0) {
                         ctx.drawImage(imgPincho, obs.x, sueloY, 35, 40);
                     } else {
+                        // Respaldo visual (pincho rojo)
                         ctx.fillStyle = '#ff0055';
                         ctx.beginPath();
                         ctx.moveTo(obs.x, sueloY + 40);
@@ -274,10 +288,11 @@
             }
         });
 
-        // Jugador
+        // Personaje (Cubo)
         if (imgJugador.complete && imgJugador.naturalWidth !== 0) {
             ctx.drawImage(imgJugador, cubo.x, cubo.y, cubo.ancho, cubo.alto);
         } else {
+            // Respaldo visual
             ctx.fillStyle = '#00ffff';
             ctx.fillRect(cubo.x, cubo.y, cubo.ancho, cubo.alto);
         }
@@ -289,7 +304,7 @@
         ctx.textAlign = 'left';
         ctx.fillText(porcentaje + "%", 20, 35);
 
-        // Carteles
+        // Carteles de Estado
         if (!juegoIniciado) {
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -306,7 +321,7 @@
             ctx.fillText("¡GAME OVER!", canvas.width / 2, canvas.height / 2 - 10);
             ctx.font = '18px Arial';
             ctx.fillStyle = '#ffffff';
-            ctx.fillText("Toca para reintentar", canvas.width / 2, canvas.height / 2 + 30);
+            ctx.fillText("Hacé clic para reintentar", canvas.width / 2, canvas.height / 2 + 30);
         } else if (victoria) {
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -328,6 +343,7 @@
         gameOver = false;
         victoria = false;
         
+        // Clonar mapa del nivel
         obstaculos = mapaNivelOriginal.map(item => ({
             ...item,
             posXOriginal: item.x,
@@ -338,6 +354,7 @@
         juegoIniciado = true;
     }
 
+    // Iniciar bucle principal
     dibujar();
 </script>
 
