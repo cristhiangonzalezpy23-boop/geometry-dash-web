@@ -96,31 +96,30 @@
 
     // --- DISEÑO DE NIVEL FIJO Y JUGABLE ---
    const mapaNivelOriginal = [
-        // Inicio (Pinchos simples)
+        const mapaNivelOriginal = [
+        // Inicio
         { x: 700, tipo: 'pincho' },
         { x: 1100, tipo: 'pincho' },
-        { x: 1400, tipo: 'pincho' },
+        { x: 1500, tipo: 'pincho' },
         
-        // Primera plataforma
-        { x: 1750, tipo: 'bloque', alto: 40 },
+        // Primera plataforma plana
+        { x: 1900, tipo: 'bloque', alto: 40 },
+        { x: 1950, tipo: 'bloque', alto: 40 },
         
-        // ZONA DEL 47% (Ahora son solo 2 pinchos: ¡Salto fácil!)
-        { x: 2150, tipo: 'pincho' }, 
-        { x: 2185, tipo: 'pincho' },
-
-        // Escalera de bloques Cyan
+        // Pincho medio
+        { x: 2300, tipo: 'pincho' }, 
+        
+        // ZONA DEL 56% CORREGIDA: Plataforma plana (sin paredes altas donde chocar)
         { x: 2600, tipo: 'bloque', alto: 40 },
         { x: 2650, tipo: 'bloque', alto: 40 },
-        { x: 2700, tipo: 'bloque', alto: 80 },
-        { x: 2750, tipo: 'bloque', alto: 80 },
+        { x: 2700, tipo: 'bloque', alto: 40 },
         
-        // Tramo final
-        { x: 3200, tipo: 'pincho' },
-        { x: 3500, tipo: 'pincho' }, 
-        { x: 3800, tipo: 'pincho' }, { x: 3835, tipo: 'pincho' },
+        // Final
+        { x: 3100, tipo: 'pincho' },
+        { x: 3400, tipo: 'pincho' },
         
-        // META (100%)
-        { x: 4300, tipo: 'meta' }
+        // META
+        { x: 3800, tipo: 'meta' }
     ];
 
     let obstaculos = [];
