@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Geometry Dash Web</title>
+    <title>Geometry Dash Web - Música por Nivel</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -36,45 +36,56 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // Assets adaptados a tus nombres de archivo en GitHub
     const imgFondo = new Image(); imgFondo.src = 'fondo.jpeg.jpeg';
     const imgJugador = new Image(); imgJugador.src = 'cubo.jpeg.jpeg';
     const imgPincho = new Image(); imgPincho.src = 'pincho.jpeg.jpeg';
 
-    // Audio Synthesizer (estilo 8-bit)
+    // --- SISTEMA DE AUDIO DINÁMICO POR NIVEL ---
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let audioCtx;
-    let musicaIniciada = false;
+    let intervaloMusica = null;
+    let pasoNota = 0;
 
-    function reproducirMusica() {
+    function detenerMusica() {
+        if (intervaloMusica) {
+            clearInterval(intervaloMusica);
+            intervaloMusica = null;
+        }
+    }
+
+    function iniciarMusicaNivel() {
         if (!audioCtx) audioCtx = new AudioCtx();
         if (audioCtx.state === 'suspended') audioCtx.resume();
-        if (musicaIniciada) return;
         
-        musicaIniciada = true;
-        // Secuencia retro de fondo
-        const notas = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63];
-        let paso = 0;
+        detenerMusica();
+        pasoNota = 0;
 
-        setInterval(() => {
+        const configAudio = niveles[nivelActualIndex].audio;
+
+        intervaloMusica = setInterval(() => {
             if (gameOver || !juegoIniciado || victoria) return;
             try {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(notas[paso % notas.length], audioCtx.currentTime);
+
+                osc.type = configAudio.onda || 'sawtooth';
+                const frecuencia = configAudio.notas[pasoNota % configAudio.notas.length];
+
+                osc.frequency.setValueAtTime(frecuencia, audioCtx.currentTime);
                 gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
+
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.12);
-                paso++;
+                pasoNota++;
             } catch(e){}
-        }, 160);
+        }, configAudio.tempo);
     }
 
-    // Configuración base
+    let nivelActualIndex = 0;
     let juegoIniciado = false;
     let gameOver = false;
     let victoria = false;
@@ -82,165 +93,223 @@
     const sueloY = 310;
     const velocidadJuego = 5.5;
 
-    // Jugador (Cubo)
     const cubo = {
         x: 100,
         y: sueloY,
         ancho: 40,
         alto: 40,
         vy: 0,
-        gravedad: 0.88, // Ajuste para mayor precisión
-        fuerzaSalto: -13.8, // Ajuste para triple pincho
+        gravedad: 0.88,
+        fuerzaSalto: -13.8,
         enSuelo: true
     };
 
-    // --- DISEÑO DE NIVEL FIJO Y JUGABLE ---
-   const mapaNivelOriginal = [
-        const mapaNivelOriginal = [
-        // Inicio
-        { x: 700, tipo: 'pincho' },
-        { x: 1100, tipo: 'pincho' },
-        { x: 1500, tipo: 'pincho' },
+    function generarMapaExtremo(longitudTotal, densidad) {
+        let mapa = [];
+        let x = 500;
         
-        // Primera plataforma plana
-        { x: 1900, tipo: 'bloque', alto: 40 },
-        { x: 1950, tipo: 'bloque', alto: 40 },
-        
-        // Pincho medio
-        { x: 2300, tipo: 'pincho' }, 
-        
-        // ZONA DEL 56% CORREGIDA: Plataforma plana (sin paredes altas donde chocar)
-        { x: 2600, tipo: 'bloque', alto: 40 },
-        { x: 2650, tipo: 'bloque', alto: 40 },
-        { x: 2700, tipo: 'bloque', alto: 40 },
-        
-        // Final
-        { x: 3100, tipo: 'pincho' },
-        { x: 3400, tipo: 'pincho' },
-        
-        // META
-        { x: 3800, tipo: 'meta' }
+        while (x < longitudTotal - 400) {
+            let patron = Math.floor(Math.random() * 5);
+
+            if (patron === 0) {
+                mapa.push({ x: x, tipo: 'pincho' });
+                if (densidad > 1) mapa.push({ x: x + 35, tipo: 'pincho' });
+                x += 350 - (densidad * 20);
+            } else if (patron === 1) {
+                mapa.push({ x: x, tipo: 'bloque', alto: 40 });
+                mapa.push({ x: x + 50, tipo: 'bloque', alto: 40 });
+                if (densidad > 2) mapa.push({ x: x + 100, tipo: 'bloque', alto: 40 });
+                x += 400 - (densidad * 15);
+            } else if (patron === 2) {
+                mapa.push({ x: x, tipo: 'bloque', alto: 40 });
+                mapa.push({ x: x + 50, tipo: 'pincho' });
+                x += 380 - (densidad * 20);
+            } else if (patron === 3) {
+                mapa.push({ x: x, tipo: 'pincho' });
+                mapa.push({ x: x + 220, tipo: 'pincho' });
+                x += 420 - (densidad * 15);
+            } else {
+                mapa.push({ x: x, tipo: 'bloque', alto: 40 });
+                mapa.push({ x: x + 50, tipo: 'bloque', alto: 40 });
+                mapa.push({ x: x + 100, tipo: 'bloque', alto: 40 });
+                mapa.push({ x: x + 150, tipo: 'pincho' });
+                x += 450 - (densidad * 20);
+            }
+        }
+
+        mapa.push({ x: longitudTotal, tipo: 'meta' });
+        return mapa;
+    }
+
+    // --- 10 NIVELES CON MÚSICA DIVERSIFICADA Y PROGRESIVA ---
+    const niveles = [
+        { 
+            nombre: "NIVEL 1 - DESPERTARES", 
+            longitud: 4500, 
+            mapa: generarMapaExtremo(4500, 1),
+            audio: { tempo: 180, onda: 'triangle', notas: [261.63, 329.63, 392.00, 523.25, 392.00, 329.63] } // Melódico suave
+        },
+        { 
+            nombre: "NIVEL 2 - RITMO ACELERADO", 
+            longitud: 5500, 
+            mapa: generarMapaExtremo(5500, 1.5),
+            audio: { tempo: 160, onda: 'square', notas: [220.00, 277.18, 329.63, 440.00, 329.63, 277.18] } // Electrónico alegre
+        },
+        { 
+            nombre: "NIVEL 3 - SIN DESCANSO", 
+            longitud: 6500, 
+            mapa: generarMapaExtremo(6500, 2),
+            audio: { tempo: 150, onda: 'sawtooth', notas: [293.66, 349.23, 440.00, 587.33, 440.00, 349.23] } // Agudo y rápido
+        },
+        { 
+            nombre: "NIVEL 4 - TRAMPAS CONTINUAS", 
+            longitud: 7500, 
+            mapa: generarMapaExtremo(7500, 2.5),
+            audio: { tempo: 140, onda: 'sawtooth', notas: [196.00, 246.94, 293.66, 392.00, 293.66, 246.94] } // Bajo rítmico
+        },
+        { 
+            nombre: "NIVEL 5 - ZONA DE IMPACTO", 
+            longitud: 8500, 
+            mapa: generarMapaExtremo(8500, 3),
+            audio: { tempo: 130, onda: 'square', notas: [174.61, 220.00, 261.63, 349.23, 261.63, 220.00] } // Oscuro y potente
+        },
+        { 
+            nombre: "NIVEL 6 - REFLEJOS PUROS", 
+            longitud: 9500, 
+            mapa: generarMapaExtremo(9500, 3.5),
+            audio: { tempo: 120, onda: 'sawtooth', notas: [329.63, 392.00, 493.88, 659.25, 493.88, 392.00] } // Alta frecuencia
+        },
+        { 
+            nombre: "NIVEL 7 - PESADILLA DE PINCHOS", 
+            longitud: 10500, 
+            mapa: generarMapaExtremo(10500, 4),
+            audio: { tempo: 110, onda: 'sawtooth', notas: [146.83, 174.61, 220.00, 293.66, 220.00, 174.61] } // Tensión grave
+        },
+        { 
+            nombre: "NIVEL 8 - RUTA CAÓTICA", 
+            longitud: 11500, 
+            mapa: generarMapaExtremo(11500, 4.5),
+            audio: { tempo: 100, onda: 'square', notas: [261.63, 311.13, 392.00, 523.25, 392.00, 311.13] } // Escala menor rápida
+        },
+        { 
+            nombre: "NIVEL 9 - CASI IMPOSIBLE", 
+            longitud: 12500, 
+            mapa: generarMapaExtremo(12500, 5),
+            audio: { tempo: 90, onda: 'sawtooth', notas: [130.81, 155.56, 196.00, 261.63, 196.00, 155.56] } // Súper rápido y grave
+        },
+        { 
+            nombre: "NIVEL 10 - DEMON FINAL", 
+            longitud: 14000, 
+            mapa: generarMapaExtremo(14000, 6),
+            audio: { tempo: 80, onda: 'sawtooth', notas: [110.00, 130.81, 164.81, 220.00, 293.66, 329.63, 440.00] } // MÓDULO FINAL DEMON
+        }
     ];
 
     let obstaculos = [];
 
-    // Controles
     window.addEventListener('keydown', (e) => { if (e.code === 'Space') interactuar(); });
     document.getElementById('gameContainer').addEventListener('mousedown', interactuar);
     document.getElementById('gameContainer').addEventListener('touchstart', (e) => { e.preventDefault(); interactuar(); });
 
+    function cargarNivel(index) {
+        const nivel = niveles[index];
+        obstaculos = nivel.mapa.map(item => ({
+            ...item,
+            posXOriginal: item.x,
+            y: item.y || sueloY
+        }));
+    }
+
     function interactuar() {
-        reproducirMusica();
-        if (!juegoIniciado || gameOver || victoria) {
+        if (!juegoIniciado) {
             reiniciarJuego();
             return;
         }
-        
+        if (gameOver) {
+            reiniciarJuego();
+            return;
+        }
+        if (victoria) {
+            if (nivelActualIndex === niveles.length - 1) {
+                nivelActualIndex = 0;
+            } else {
+                nivelActualIndex++;
+            }
+            reiniciarJuego();
+            return;
+        }
         if (cubo.enSuelo) {
             cubo.vy = cubo.fuerzaSalto;
             cubo.enSuelo = false;
-        } else {
-            // Salto en esfera flotante
-            obstaculos.forEach(obs => {
-                if (obs.tipo === 'esfera' && !obs.usada) {
-                    const centroEsferaX = obs.x + 20;
-                    const centroEsferaY = obs.y + 20;
-                    const cuboCentroX = cubo.x + cubo.ancho/2;
-                    const cuboCentroY = cubo.y + cubo.alto/2;
-                    
-                    const dist = Math.hypot(cuboCentroX - centroEsferaX, cuboCentroY - centroEsferaY);
-                    if (dist < 58) { // Mayor radio para que sea fácil tocarla
-                        cubo.vy = cubo.fuerzaSalto * 1.1;
-                        obs.usada = true;
-                    }
-                }
-            });
         }
     }
 
     function actualizar() {
         if (!juegoIniciado || gameOver || victoria) return;
-
         avanceNivel += velocidadJuego;
-
-        // Física Cubo (Pre-cálculo)
         cubo.vy += cubo.gravedad;
         let proximoY = cubo.y + cubo.vy;
         cubo.enSuelo = false;
 
-        let pisandoAlgo = false;
-
-        // Comprobar colisión con el suelo normal
         if (proximoY >= sueloY) {
             proximoY = sueloY;
             cubo.vy = 0;
             cubo.enSuelo = true;
-            pisandoAlgo = true;
         }
 
-        // --- SISTEMA DE FÍSICA Y COLISIONES CORREGIDO ---
         for (let i = 0; i < obstaculos.length; i++) {
             let obs = obstaculos[i];
-            obs.x = obs.posXOriginal - avanceNivel; // Posición actual en pantalla
+            obs.x = obs.posXOriginal - avanceNivel;
 
-            if (obs.x > cubo.x + cubo.ancho + 50 || obs.x < cubo.x - 100) continue; // Optimización
+            if (obs.x > cubo.x + 100 || obs.x < cubo.x - 100) continue;
 
             if (obs.tipo === 'pincho') {
-                // Caja de colisión reducida y ajustada triangularmente (10px margen lateral superior)
-                const margenLateral = 10;
                 if (
-                    cubo.x + margenLateral < obs.x + 35 &&
-                    cubo.x + cubo.ancho - margenLateral > obs.x &&
-                    proximoY + 8 < sueloY + 40 &&
+                    cubo.x + 8 < obs.x + 30 &&
+                    cubo.x + cubo.ancho - 8 > obs.x + 5 &&
+                    proximoY + 10 < sueloY + 40 &&
                     proximoY + cubo.alto > sueloY
                 ) {
                     gameOver = true;
+                    detenerMusica();
                     break;
                 }
-            } 
-            else if (obs.tipo === 'bloque') {
+            } else if (obs.tipo === 'bloque') {
                 const bloqueY = sueloY + 40 - obs.alto;
-                
-                // Comprobar si está ENFRENTADO horizontalmente
                 const colisionH = (cubo.x + cubo.ancho > obs.x + 2) && (cubo.x < obs.x + 48);
                 const colisionV = (proximoY + cubo.alto > bloqueY + 4) && (proximoY < sueloY + 40);
 
                 if (colisionH && colisionV) {
-                    // Caer ARRIBA de la plataforma
                     if (cubo.vy >= 0 && proximoY + cubo.alto - cubo.vy <= bloqueY + 16) {
                         proximoY = bloqueY - cubo.alto;
                         cubo.vy = 0;
                         cubo.enSuelo = true;
-                        pisandoAlgo = true;
                     } else {
-                        // Choque lateral (Muerte instantánea)
                         gameOver = true;
+                        detenerMusica();
                         break;
                     }
                 }
-            }
-            else if (obs.tipo === 'meta') {
+            } else if (obs.tipo === 'meta') {
                 if (cubo.x >= obs.x) {
                     victoria = true;
+                    detenerMusica();
                     break;
                 }
             }
         }
 
-        if (gameOver) return; // Parar físicas al instante
-
-        cubo.y = proximoY; // Aplicar posición final
+        if (gameOver) return;
+        cubo.y = proximoY;
     }
 
     function dibujar() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Fondo
         if (imgFondo.complete && imgFondo.naturalWidth !== 0) {
             ctx.drawImage(imgFondo, 0, 0, canvas.width, canvas.height);
         }
 
-        // Suelo Neon (Línea celeste)
         ctx.strokeStyle = '#00ffff';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -248,15 +317,12 @@
         ctx.lineTo(canvas.width, sueloY + 40);
         ctx.stroke();
 
-        // Renderizar Obstáculos
         obstaculos.forEach(obs => {
-            // Solo dibujar si está cerca de la pantalla
             if (obs.x > -100 && obs.x < canvas.width + 100) {
                 if (obs.tipo === 'pincho') {
                     if (imgPincho.complete && imgPincho.naturalWidth !== 0) {
                         ctx.drawImage(imgPincho, obs.x, sueloY, 35, 40);
                     } else {
-                        // Respaldo visual (pincho rojo)
                         ctx.fillStyle = '#ff0055';
                         ctx.beginPath();
                         ctx.moveTo(obs.x, sueloY + 40);
@@ -264,8 +330,7 @@
                         ctx.lineTo(obs.x + 35, sueloY + 40);
                         ctx.fill();
                     }
-                } 
-                else if (obs.tipo === 'bloque') {
+                } else if (obs.tipo === 'bloque') {
                     const bloqueY = sueloY + 40 - obs.alto;
                     ctx.fillStyle = '#00ffff';
                     ctx.fillRect(obs.x, bloqueY, 50, obs.alto);
@@ -273,42 +338,34 @@
                     ctx.lineWidth = 2;
                     ctx.strokeRect(obs.x, bloqueY, 50, obs.alto);
                 }
-                else if (obs.tipo === 'esfera') {
-                    ctx.beginPath();
-                    ctx.arc(obs.x + 20, obs.y + 20, 15, 0, Math.PI * 2);
-                    ctx.fillStyle = obs.usada ? '#555555' : '#ffee00';
-                    ctx.fill();
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                }
             }
         });
 
-        // Personaje (Cubo)
         if (imgJugador.complete && imgJugador.naturalWidth !== 0) {
             ctx.drawImage(imgJugador, cubo.x, cubo.y, cubo.ancho, cubo.alto);
         } else {
-            // Respaldo visual
             ctx.fillStyle = '#00ffff';
             ctx.fillRect(cubo.x, cubo.y, cubo.ancho, cubo.alto);
         }
 
-        // Progreso %
-        const porcentaje = Math.min(100, Math.floor((avanceNivel / 4600) * 100));
+        const nivelActual = niveles[nivelActualIndex];
+        const porcentajeVal = victoria ? 100 : Math.min(100, Math.floor((avanceNivel / nivelActual.longitud) * 100));
+        
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 20px Arial';
+        ctx.font = 'bold 18px Arial';
         ctx.textAlign = 'left';
-        ctx.fillText(porcentaje + "%", 20, 35);
+        ctx.fillText(nivelActual.nombre + " - " + porcentajeVal + "%", 20, 35);
 
-        // Carteles de Estado
         if (!juegoIniciado) {
-            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#00ffff';
             ctx.font = 'bold 26px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText("¡NIVEL 1 - TOCA PARA EMPEZAR!", canvas.width / 2, canvas.height / 2);
+            ctx.fillText("¡TOCA PARA EMPEZAR!", canvas.width / 2, canvas.height / 2 - 15);
+            ctx.font = '18px Arial';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(nivelActual.nombre, canvas.width / 2, canvas.height / 2 + 25);
         } else if (gameOver) {
             ctx.fillStyle = 'rgba(0,0,0,0.6)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -318,14 +375,25 @@
             ctx.fillText("¡GAME OVER!", canvas.width / 2, canvas.height / 2 - 10);
             ctx.font = '18px Arial';
             ctx.fillStyle = '#ffffff';
-            ctx.fillText("Hacé clic para reintentar", canvas.width / 2, canvas.height / 2 + 30);
+            ctx.fillText("Toca para reintentar", canvas.width / 2, canvas.height / 2 + 30);
         } else if (victoria) {
-            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#00ffcc';
-            ctx.font = 'bold 40px Arial';
+            ctx.font = 'bold 36px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText("¡NIVEL COMPLETADO! 🎉", canvas.width / 2, canvas.height / 2);
+            
+            if (nivelActualIndex === niveles.length - 1) {
+                ctx.fillText("¡SOS UN CRACK! 🎉", canvas.width / 2, canvas.height / 2 - 15);
+                ctx.font = '18px Arial';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText("Completaste todos los niveles modo extremo", canvas.width / 2, canvas.height / 2 + 25);
+            } else {
+                ctx.fillText("¡NIVEL COMPLETADO! 🎉", canvas.width / 2, canvas.height / 2 - 15);
+                ctx.font = '18px Arial';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText("Toca para pasar al siguiente nivel", canvas.width / 2, canvas.height / 2 + 25);
+            }
         }
 
         actualizar();
@@ -340,18 +408,11 @@
         gameOver = false;
         victoria = false;
         
-        // Clonar mapa del nivel
-        obstaculos = mapaNivelOriginal.map(item => ({
-            ...item,
-            posXOriginal: item.x,
-            y: item.y || sueloY,
-            usada: false
-        }));
-        
+        cargarNivel(nivelActualIndex);
         juegoIniciado = true;
+        iniciarMusicaNivel();
     }
 
-    // Iniciar bucle principal
     dibujar();
 </script>
 
