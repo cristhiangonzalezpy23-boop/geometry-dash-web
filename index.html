@@ -95,34 +95,32 @@
     };
 
     // --- DISEÑO DE NIVEL FIJO Y JUGABLE ---
-    const mapaNivelOriginal = [
-        // Inicio
+   const mapaNivelOriginal = [
+        // Inicio (Pinchos simples)
         { x: 700, tipo: 'pincho' },
         { x: 1100, tipo: 'pincho' },
-        { x: 1400, tipo: 'pincho' }, { x: 1435, tipo: 'pincho' },
+        { x: 1400, tipo: 'pincho' },
         
-        // Primera plataforma individual
-        { x: 1800, tipo: 'bloque', alto: 40 },
+        // Primera plataforma
+        { x: 1750, tipo: 'bloque', alto: 40 },
         
-        // TRIPLE PINCHO CON ESFERA (Corrida a la izquierda: x=2150)
-        { x: 2120, y: sueloY - 70, tipo: 'esfera' },
-        { x: 2180, tipo: 'pincho' }, { x: 2215, tipo: 'pincho' }, { x: 2250, tipo: 'pincho' },
+        // ZONA DEL 47% (Ahora son solo 2 pinchos: ¡Salto fácil!)
+        { x: 2150, tipo: 'pincho' }, 
+        { x: 2185, tipo: 'pincho' },
 
-        // SECCIÓN DEL 56% CORREGIDA (Bloques pegados continua)
+        // Escalera de bloques Cyan
+        { x: 2600, tipo: 'bloque', alto: 40 },
         { x: 2650, tipo: 'bloque', alto: 40 },
-        { x: 2700, tipo: 'bloque', alto: 40 },
+        { x: 2700, tipo: 'bloque', alto: 80 },
         { x: 2750, tipo: 'bloque', alto: 80 },
-        { x: 2800, tipo: 'bloque', alto: 80 },
-        { x: 2950, tipo: 'pincho' },
         
         // Tramo final
-        { x: 3400, tipo: 'pincho' },
-        { x: 3700, tipo: 'pincho' }, { x: 3735, tipo: 'pincho' },
-        { x: 4050, y: sueloY - 70, tipo: 'esfera' },
-        { x: 4100, tipo: 'pincho' }, { x: 4135, tipo: 'pincho' }, { x: 4170, tipo: 'pincho' },
+        { x: 3200, tipo: 'pincho' },
+        { x: 3500, tipo: 'pincho' }, 
+        { x: 3800, tipo: 'pincho' }, { x: 3835, tipo: 'pincho' },
         
-        // META
-        { x: 4600, tipo: 'meta' }
+        // META (100%)
+        { x: 4300, tipo: 'meta' }
     ];
 
     let obstaculos = [];
