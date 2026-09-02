@@ -2,382 +2,280 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geometry Dash Web - Bloques & Pinchos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Geometry Dash Web</title>
     <style>
-        body {
-            background: linear-gradient(135deg, #10002b, #240046, #3c096c);
-            color: #ffffff;
-            font-family: 'Arial Black', Gadget, sans-serif;
-            text-align: center;
+        * {
             margin: 0;
-            padding: 20px;
-            overflow: hidden;
+            padding: 0;
+            box-sizing: border-box;
         }
-        h1 {
-            color: #00ffff;
-            text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff;
-            font-size: 32px;
-            margin-bottom: 5px;
-        }
-        p {
-            color: #ff007f;
-            text-shadow: 0 0 5px #ff007f;
-            margin-bottom: 15px;
-        }
-        #juego-container {
-            max-width:100%;
+
+        body {
+            background-color: #0b0b12;
             display: flex;
-            flex-direction: column;
-            align-items: center;
             justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
         }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16 / 9;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+        }
+
         canvas {
-            max-width:100%;
-            height:aut0;
-            border: 4px solid #00ffff;
-            border-radius: 12px;
-            box-shadow: 0 0 30px #00ffff, inset 0 0 15px #00ffff;
-            cursor: pointer;
+            width: 100%;
+            height: 100%;
+            display: block;
+            background-color: #000;
         }
     </style>
 </head>
 <body>
 
-    <h1>✨ GEOMETRY DASH NEÓN ✨</h1>
-    <p>Hacé *Clic en la pantalla* para iniciar | *ESPACIO* para saltar</p>
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
+</div>
 
-    <div id="juego-container">
-        <canvas id="gameCanvas" width="800" height="400"></canvas>
-    </div>
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
 
-    <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
+    // Carga de imágenes con los nombres exactos de tu GitHub
+    const imgFondo = new Image(); imgFondo.src = 'fondo.jpeg.jpeg';
+    const imgJugador = new Image(); imgJugador.src = 'cubo.jpeg.jpeg';
+    const imgPincho = new Image(); imgPincho.src = 'pincho.jpeg.jpeg';
 
-        // --- Carga de Imágenes ---
-        const imgFondo = new Image(); imgFondo.src = 'fondo.png'; 
-        const imgJugador = new Image(); imgJugador.src = 'cubo.png'; 
-        const imgPincho = new Image(); imgPincho.src = 'pincho.png';
+    // Sistema de Audio
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
 
-        // --- Audio por Código ---
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        let audioCtx, intervaloMusica;
+    function initAudio() {
+        if (!audioCtx) audioCtx = new AudioCtx();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+    }
 
-        function initAudio() {
-            if (!audioCtx) audioCtx = new AudioCtx();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+    // Variables del juego
+    let juegoIniciado = false;
+    let gameOver = false;
+    let score = 0;
+    const sueloY = 310;
+
+    // Jugador
+    const cubo = {
+        x: 80,
+        y: sueloY,
+        ancho: 40,
+        alto: 40,
+        vy: 0,
+        gravedad: 0.8,
+        fuerzaSalto: -13,
+        enSuelo: true
+    };
+
+    let obstaculos = [];
+    let frames = 0;
+
+    // Controles (Teclado, Mouse y Pantalla Táctil)
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') interactuar();
+    });
+    canvas.addEventListener('mousedown', interactuar);
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        interactuar();
+    });
+
+    function interactuar() {
+        initAudio();
+        if (!juegoIniciado || gameOver) {
+            reiniciarJuego();
+            return;
         }
-
-        function tocarNota(freq, duracion, tipo, vol) {
-            if (!tipo) tipo = "sawtooth";
-            if (!vol) vol = 0.08;
-            if (!audioCtx || gameOver) return;
-            try {
-                let osc = audioCtx.createOscillator();
-                let gain = audioCtx.createGain();
-                osc.type = tipo;
-                osc.frequency.value = freq;
-                gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duracion);
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.start();
-                osc.stop(audioCtx.currentTime + duracion);
-            } catch (e) {}
-        }
-
-        function reproducirMusicaRetro() {
-            const notas = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
-            let paso = 0;
-            if (intervaloMusica) clearInterval(intervaloMusica);
-            intervaloMusica = setInterval(() => {
-                if (!gameOver) {
-                    let notaBajo = (paso % 2 === 0) ? 130.81 : 164.81;
-                    tocarNota(notaBajo, 0.15, "square", 0.06);
-                    let notaIndex = (paso * 3) % notas.length;
-                    tocarNota(notas[notaIndex], 0.12, "sawtooth", 0.08);
-                    paso++;
-                }
-            }, 130);
-        }
-
-        // --- Estado del Juego ---
-        let gameOver = false, juegoIniciado = false;
-        let puntaje = 0, velocidadBase = 6, velocidadActual = velocidadBase;
-        let matizFondo = 260;
-
-        const alturaSuelo = 330;
-
-        const jugador = {
-            x: 100, y: 300, tamano: 40,
-            velocidadY: 0, gravedad: 0.85, fuerzaSalto: -14.2,
-            enElSuelo: false, rotacion: 0
-        };
-
-        let obstaculos = [], particulas = [], marco = 0;
-
-        function crearObstaculoRandom() {
-            const tipo = Math.floor(Math.random() * 5);
-
-            if (tipo === 0) {
-                obstaculos.push({ x: canvas.width, y: alturaSuelo - 40, ancho: 38, alto: 40, tipo: 'pincho' });
-            } else if (tipo === 1) {
-                obstaculos.push({ x: canvas.width, y: alturaSuelo - 40, ancho: 38, alto: 40, tipo: 'pincho' });
-                obstaculos.push({ x: canvas.width + 38, y: alturaSuelo - 40, ancho: 38, alto: 40, tipo: 'pincho' });
-            } else if (tipo === 2) {
-                let altoBloque = 40;
-                let yBloque = alturaSuelo - 85;
-                obstaculos.push({ x: canvas.width, y: yBloque, ancho: 80, alto: altoBloque, tipo: 'bloque' });
-                obstaculos.push({ x: canvas.width + 20, y: alturaSuelo - 40, ancho: 38, alto: 40, tipo: 'pincho' });
-            } else if (tipo === 3) {
-                obstaculos.push({ x: canvas.width, y: alturaSuelo - 90, ancho: 38, alto: 40, tipo: 'pincho_aereo' });
-            } else if (tipo === 4) {
-                let yBloque2 = alturaSuelo - 60;
-                obstaculos.push({ x: canvas.width, y: yBloque2, ancho: 160, alto: 60, tipo: 'bloque' });
-                obstaculos.push({ x: canvas.width + 100, y: yBloque2 - 40, ancho: 38, alto: 40, tipo: 'pincho' });
-            }
-        }
-
-        function crearParticulasSalto() {
-            for (let i = 0; i < 12; i++) {
-                particulas.push({
-                    x: jugador.x + jugador.tamano / 2,
-                    y: jugador.y + jugador.tamano,
-                    vx: (Math.random() - 0.5) * 6,
-                    vy: Math.random() * -3,
-                    tamano: Math.random() * 6 + 2,
-                    vida: 1
-                });
-            }
-        }
-
-        function matarJugador() {
-            tocarNota(150, 0.4, "sawtooth", 0.3);
-            gameOver = true;
-            if (intervaloMusica) clearInterval(intervaloMusica);
-        }
-
-        function actualizar() {
-            if (gameOver || !juegoIniciado) return;
-
-            velocidadActual = velocidadBase + Math.floor(puntaje / 5) * 0.7;
-            matizFondo = (matizFondo + 0.3) % 360;
-
-            jugador.velocidadY += jugador.gravedad;
-            jugador.y += jugador.velocidadY;
-
-            let sobrePlataforma = false;
-
-            for (let obs of obstaculos) {
-                if (obs.tipo === 'bloque') {
-                    if (
-                        jugador.x + jugador.tamano > obs.x &&
-                        jugador.x < obs.x + obs.ancho &&
-                        jugador.y + jugador.tamano >= obs.y &&
-                        jugador.y + jugador.tamano <= obs.y + 15 &&
-                        jugador.velocidadY >= 0
-                    ) {
-                        jugador.y = obs.y - jugador.tamano;
-                        jugador.velocidadY = 0;
-                        jugador.enElSuelo = true;
-                        sobrePlataforma = true;
-                        jugador.rotacion = Math.round(jugador.rotacion / 90) * 90;
-                    } 
-                    else if (
-                        jugador.x + jugador.tamano - 6 > obs.x &&
-                        jugador.x < obs.x + obs.ancho &&
-                        jugador.y + jugador.tamano > obs.y + 10 &&
-                        jugador.y < obs.y + obs.alto
-                    ) {
-                        matarJugador();
-                    }
-                } else if (obs.tipo === 'pincho' || obs.tipo === 'pincho_aereo') {
-                    if (
-                        jugador.x + 6 < obs.x + obs.ancho &&
-                        jugador.x + jugador.tamano - 6 > obs.x &&
-                        jugador.y + jugador.tamano - 6 > obs.y &&
-                        jugador.y + 6 < obs.y + obs.alto
-                    ) {
-                        matarJugador();
+        
+        if (cubo.enSuelo) {
+            cubo.vy = cubo.fuerzaSalto;
+            cubo.enSuelo = false;
+        } else {
+            // Activar salto extra al tocar una esfera amarilla en el aire
+            obstaculos.forEach(obs => {
+                if (obs.tipo === 'esfera' && !obs.usada) {
+                    if (colisionConObjeto(cubo, obs)) {
+                        cubo.vy = cubo.fuerzaSalto * 1.1;
+                        obs.usada = true;
                     }
                 }
-            }
+            });
+        }
+    }
 
-            if (!sobrePlataforma) {
-                if (jugador.y + jugador.tamano >= alturaSuelo) {
-                    jugador.y = alturaSuelo - jugador.tamano;
-                    jugador.velocidadY = 0;
-                    jugador.enElSuelo = true;
-                    jugador.rotacion = Math.round(jugador.rotacion / 90) * 90;
-                } else {
-                    jugador.enElSuelo = false;
-                    jugador.rotacion += 12;
-                }
-            }
+    function crearObstaculo() {
+        const opciones = ['pinchoSuelo', 'pinchoTecho', 'bloque', 'esfera'];
+        const tipoElegido = opciones[Math.floor(Math.random() * opciones.length)];
 
-            marco++;
-            let intervalo = Math.max(80, 150 - Math.floor(velocidadActual * 3));
-            if (marco % intervalo === 0) {
-                crearObstaculoRandom();
-            }
+        if (tipoElegido === 'pinchoSuelo') {
+            obstaculos.push({ x: canvas.width, y: sueloY, ancho: 40, alto: 40, tipo: 'pinchoSuelo' });
+        } 
+        else if (tipoElegido === 'pinchoTecho') {
+            obstaculos.push({ x: canvas.width, y: 0, ancho: 40, alto: 40, tipo: 'pinchoTecho' });
+        } 
+        else if (tipoElegido === 'bloque') {
+            obstaculos.push({ x: canvas.width, y: sueloY - 40, ancho: 50, alto: 80, tipo: 'bloque' });
+        } 
+        else if (tipoElegido === 'esfera') {
+            obstaculos.push({ x: canvas.width, y: sueloY - 90, ancho: 30, alto: 30, tipo: 'esfera', usada: false });
+        }
+    }
 
-            for (let i = 0; i < obstaculos.length; i++) {
-                obstaculos[i].x -= velocidadActual;
-            }
+    function actualizar() {
+        if (!juegoIniciado || gameOver) return;
 
-            if (obstaculos.length > 0 && obstaculos[0].x + obstaculos[0].ancho < -50) {
-                obstaculos.shift();
-                puntaje++;
-            }
-
-            for (let i = particulas.length - 1; i >= 0; i--) {
-                let p = particulas[i];
-                p.x += p.vx; p.y += p.vy; p.vida -= 0.04;
-                if (p.vida <= 0) particulas.splice(i, 1);
-            }
-
-            dibujar();
-            requestAnimationFrame(actualizar);
+        frames++;
+        if (frames % 100 === 0) {
+            crearObstaculo();
         }
 
-        function dibujar() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Física del Cubo
+        cubo.vy += cubo.gravedad;
+        cubo.y += cubo.vy;
 
-            let gradFondo = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            gradFondo.addColorStop(0, "hsl(" + matizFondo + ", 80%, 15%)");
-            gradFondo.addColorStop(1, "hsl(" + ((matizFondo + 40) % 360) + ", 90%, 25%)");
-            ctx.fillStyle = gradFondo;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // Colisión con el suelo principal
+        if (cubo.y >= sueloY) {
+            cubo.y = sueloY;
+            cubo.vy = 0;
+            cubo.enSuelo = true;
+        }
 
-            if (imgFondo.complete) {
-                ctx.globalAlpha = 0.25;
-                ctx.drawImage(imgFondo, 0, 0, canvas.width, canvas.height);
-                ctx.globalAlpha = 1.0;
-            }
+        // Mover Obstáculos y detectar impacto
+        obstaculos.forEach((obs, index) => {
+            obs.x -= 5;
 
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#00ffff";
-            ctx.fillStyle = "#00ffff";
-            ctx.fillRect(0, alturaSuelo, canvas.width, 4);
-            ctx.fillStyle = "#0a0a23";
-            ctx.fillRect(0, alturaSuelo + 4, canvas.width, canvas.height - alturaSuelo);
-            ctx.shadowBlur = 0;
-
-            for (let p of particulas) {
-                ctx.fillStyle = "rgba(0, 255, 255, " + p.vida + ")";
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.tamano, 0, Math.PI * 2);
-                ctx.fill();
-            }
-
-            for (let obs of obstaculos) {
-                if (obs.tipo === 'bloque') {
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = "#00ffcc";
-                    ctx.fillStyle = "#00ffcc";
-                    ctx.fillRect(obs.x, obs.y, obs.ancho, obs.alto);
-                    ctx.fillStyle = "#051f20";
-                    ctx.fillRect(obs.x + 3, obs.y + 3, obs.ancho - 6, obs.alto - 6);
-                    ctx.shadowBlur = 0;
-                } else {
-                    ctx.shadowBlur = 10;
-                    ctx.shadowColor = "#ff0055";
-                    if (imgPincho.complete && imgPincho.width > 0) {
-                        ctx.drawImage(imgPincho, obs.x, obs.y, obs.ancho, obs.alto);
+            if (colisionConObjeto(cubo, obs)) {
+                if (obs.tipo === 'pinchoSuelo' || obs.tipo === 'pinchoTecho') {
+                    gameOver = true;
+                } else if (obs.tipo === 'bloque') {
+                    // Caer sobre la plataforma del bloque
+                    if (cubo.vy > 0 && (cubo.y + cubo.alto - cubo.vy) <= obs.y) {
+                        cubo.y = obs.y - cubo.alto;
+                        cubo.vy = 0;
+                        cubo.enSuelo = true;
                     } else {
-                        ctx.fillStyle = "#ff0055";
-                        ctx.beginPath();
-                        ctx.moveTo(obs.x, obs.y + obs.alto);
-                        ctx.lineTo(obs.x + obs.ancho / 2, obs.y);
-                        ctx.lineTo(obs.x + obs.ancho, obs.y + obs.alto);
-                        ctx.fill();
+                        // Chocar contra el lateral
+                        gameOver = true;
                     }
-                    ctx.shadowBlur = 0;
                 }
             }
 
-            ctx.save();
-            ctx.translate(jugador.x + jugador.tamano / 2, jugador.y + jugador.tamano / 2);
-            ctx.rotate((jugador.rotacion * Math.PI) / 180);
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#00ffcc";
-
-            if (imgJugador.complete && imgJugador.width > 0) {
-                ctx.drawImage(imgJugador, -jugador.tamano / 2, -jugador.tamano / 2, jugador.tamano, jugador.tamano);
-            } else {
-                ctx.fillStyle = "#00ffcc";
-                ctx.fillRect(-jugador.tamano / 2, -jugador.tamano / 2, jugador.tamano, jugador.tamano);
+            // Eliminar obstáculos fuera de pantalla y sumar puntos
+            if (obs.x + obs.ancho < 0) {
+                obstaculos.splice(index, 1);
+                score++;
             }
-            ctx.restore();
-            ctx.shadowBlur = 0;
+        });
+    }
 
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 22px 'Arial Black'";
-            ctx.shadowBlur = 8;
-            ctx.shadowColor = "#00ffff";
-            ctx.fillText("SCORE: " + puntaje, 25, 40);
-            ctx.shadowBlur = 0;
+    function colisionConObjeto(r1, r2) {
+        return !(r1.x > r2.x + r2.ancho ||
+                 r1.x + r1.ancho < r2.x ||
+                 r1.y > r2.y + r2.alto ||
+                 r1.y + r1.alto < r2.y);
+    }
 
-            if (!juegoIniciado) {
-                ctx.fillStyle = "rgba(10, 0, 30, 0.75)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = "#00ffff";
-                ctx.font = "bold 30px 'Arial Black'";
-                ctx.shadowBlur = 10; ctx.shadowColor = "#00ffff";
-                ctx.fillText("¡CLICK PARA EMPEZAR!", canvas.width / 2 - 200, canvas.height / 2);
-                ctx.shadowBlur = 0;
-            }
+    function dibujar() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (gameOver) {
-                ctx.fillStyle = "rgba(20, 0, 10, 0.85)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                ctx.fillStyle = "#ff0055";
-                ctx.font = "bold 42px 'Arial Black'";
-                ctx.shadowBlur = 15; ctx.shadowColor = "#ff0055";
-                ctx.fillText("¡GAME OVER!", canvas.width / 2 - 160, canvas.height / 2 - 10);
-
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "18px 'Segoe UI'";
-                ctx.shadowBlur = 0;
-                ctx.fillText("Hacé clic o presioná ESPACIO para reiniciar", canvas.width / 2 - 165, canvas.height / 2 + 35);
-            }
+        // Renderizar Fondo
+        if (imgFondo.complete) {
+            ctx.drawImage(imgFondo, 0, 0, canvas.width, canvas.height);
         }
 
-        function saltar() {
-            initAudio();
+        // Renderizar Suelo Neon
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, sueloY + 40);
+        ctx.lineTo(canvas.width, sueloY + 40);
+        ctx.stroke();
 
-            if (!juegoIniciado) {
-                juegoIniciado = true;
-                reproducirMusicaRetro();
-                actualizar();
-                return;
-            }
-
-            if (gameOver) {
-                gameOver = false;
-                obstaculos = []; particulas = [];
-                puntaje = 0; marco = 0;
-                velocidadActual = velocidadBase;
-                jugador.y = 300;
-                reproducirMusicaRetro();
-                actualizar();
-            } else if (jugador.enElSuelo) {
-                tocarNota(480, 0.1, "sine", 0.12);
-                jugador.velocidadY = jugador.fuerzaSalto;
-                crearParticulasSalto();
-            }
+        // Renderizar Jugador
+        if (imgJugador.complete) {
+            ctx.drawImage(imgJugador, cubo.x, cubo.y, cubo.ancho, cubo.alto);
         }
 
-        window.addEventListener("keydown", (e) => {
-            if (e.code === "Space") saltar();
+        // Renderizar Obstáculos
+        obstaculos.forEach(obs => {
+            if (obs.tipo === 'pinchoSuelo') {
+                if (imgPincho.complete) ctx.drawImage(imgPincho, obs.x, obs.y, obs.ancho, obs.alto);
+            } 
+            else if (obs.tipo === 'pinchoTecho') {
+                ctx.save();
+                ctx.translate(obs.x + obs.ancho / 2, obs.y + obs.alto / 2);
+                ctx.scale(1, -1);
+                if (imgPincho.complete) ctx.drawImage(imgPincho, -obs.ancho / 2, -obs.alto / 2, obs.ancho, obs.alto);
+                ctx.restore();
+            } 
+            else if (obs.tipo === 'bloque') {
+                ctx.fillStyle = '#00ffff';
+                ctx.fillRect(obs.x, obs.y, obs.ancho, obs.alto);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(obs.x, obs.y, obs.ancho, obs.alto);
+            } 
+            else if (obs.tipo === 'esfera') {
+                ctx.beginPath();
+                ctx.arc(obs.x + obs.ancho/2, obs.y + obs.alto/2, obs.ancho/2, 0, Math.PI * 2);
+                ctx.fillStyle = obs.usada ? '#555555' : '#ffee00';
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
         });
 
-        canvas.addEventListener("click", saltar);
+        // Interfaz de Usuario / Score
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px Arial';
+        ctx.textAlign = 'left';
+        ctx.fillText("SCORE: " + score, 20, 30);
 
-        dibujar();
-    </script>
+        if (!juegoIniciado) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("¡Toca la pantalla para empezar!", canvas.width / 2, canvas.height / 2);
+        } else if (gameOver) {
+            ctx.fillStyle = '#ff007f';
+            ctx.font = 'bold 40px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText("¡GAME OVER!", canvas.width / 2, canvas.height / 2);
+            ctx.font = '18px Arial';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText("Toca para volver a intentar", canvas.width / 2, canvas.height / 2 + 40);
+        }
+
+        requestAnimationFrame(dibujar);
+    }
+
+    function reiniciarJuego() {
+        cubo.y = sueloY;
+        cubo.vy = 0;
+        cubo.enSuelo = true;
+        obstaculos = [];
+        score = 0;
+        frames = 0;
+        gameOver = false;
+        juegoIniciado = true;
+    }
+
+    // Iniciar bucle de renderizado
+    dibujar();
+</script>
 
 </body>
 </html>
