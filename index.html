@@ -77,7 +77,7 @@
     let juegoIniciado = false;
     let gameOver = false;
     let victoria = false;
-    let avanceNivel = 0; // Distancia recorrida
+    let avanceNivel = 0;
     const sueloY = 310;
     const velocidadJuego = 5.5;
 
@@ -93,36 +93,35 @@
         enSuelo: true
     };
 
-    // --- DISEÑO DE NIVEL ESTILO GEOMETRY DASH ---
-    // x: posición horizontal en el mapa | tipo: 'pincho', 'bloque', 'esfera' | y: altura (opcional)
+    // --- MAPA CORREGIDO (SECCIÓN DEL 56% FLUIDA) ---
     const mapaNivelOriginal = [
-        // Inicio suave
+        // Inicio
         { x: 700, tipo: 'pincho' },
         { x: 1100, tipo: 'pincho' },
-        { x: 1400, tipo: 'pincho' }, { x: 1435, tipo: 'pincho' }, // Doble pincho
+        { x: 1400, tipo: 'pincho' }, { x: 1435, tipo: 'pincho' },
         
-        // Primera plataforma
+        // Plataforma individual
         { x: 1800, tipo: 'bloque', alto: 40 },
-        { x: 1840, tipo: 'pincho' }, // Pincho pegado a plataforma
         
-        // Salto con Esfera Amarilla en el aire
+        // Triple pincho con Esfera corrida a la izquierda
+        { x: 2150, y: sueloY - 70, tipo: 'esfera' },
         { x: 2200, tipo: 'pincho' }, { x: 2235, tipo: 'pincho' }, { x: 2270, tipo: 'pincho' },
-        { x: 2235, y: sueloY - 80, tipo: 'esfera' }, // Esfera para saltar por encima de los 3 pinchos
 
-        // Sección de Bloques en escalera
+        // SECCIÓN DEL 56% CORREGIDA: Escalera continua fácil de subir
+        { x: 2650, tipo: 'bloque', alto: 40 },
         { x: 2700, tipo: 'bloque', alto: 40 },
+        { x: 2750, tipo: 'bloque', alto: 80 }, // Segundo escalón pegado
         { x: 2800, tipo: 'bloque', alto: 80 },
-        { x: 2900, tipo: 'bloque', alto: 40 },
         { x: 2950, tipo: 'pincho' },
         
-        // Tramo final rápido
+        // Tramo final
         { x: 3400, tipo: 'pincho' },
         { x: 3700, tipo: 'pincho' }, { x: 3735, tipo: 'pincho' },
-        { x: 4100, tipo: 'esfera', y: sueloY - 70 },
-        { x: 4200, tipo: 'pincho' }, { x: 4235, tipo: 'pincho' }, { x: 4270, tipo: 'pincho' },
+        { x: 4050, y: sueloY - 70, tipo: 'esfera' },
+        { x: 4100, tipo: 'pincho' }, { x: 4135, tipo: 'pincho' }, { x: 4170, tipo: 'pincho' },
         
         // META
-        { x: 4700, tipo: 'meta' }
+        { x: 4600, tipo: 'meta' }
     ];
 
     let obstaculos = [];
@@ -143,7 +142,6 @@
             cubo.vy = cubo.fuerzaSalto;
             cubo.enSuelo = false;
         } else {
-            // Activar salto en el aire si toca una Esfera (Orb)
             obstaculos.forEach(obs => {
                 if (obs.tipo === 'esfera' && !obs.usada) {
                     const centroX = obs.x + 20;
@@ -151,9 +149,8 @@
                     const cuboCentroX = cubo.x + cubo.ancho/2;
                     const cuboCentroY = cubo.y + cubo.alto/2;
                     
-                    // Distancia a la esfera
                     const dist = Math.hypot(cuboCentroX - centroX, cuboCentroY - centroY);
-                    if (dist < 50) {
+                    if (dist < 55) {
                         cubo.vy = cubo.fuerzaSalto * 1.1;
                         obs.usada = true;
                     }
@@ -171,24 +168,25 @@
         cubo.vy += cubo.gravedad;
         cubo.y += cubo.vy;
 
+        let pisandoPlataforma = false;
+
+        // Suelo normal
         if (cubo.y >= sueloY) {
             cubo.y = sueloY;
             cubo.vy = 0;
             cubo.enSuelo = true;
+            pisandoPlataforma = true;
         }
 
         // Mover y procesar elementos del mapa
-        let enPlataforma = false;
-
         obstaculos.forEach(obs => {
             obs.x = obs.posXOriginal - avanceNivel;
 
-            // Colisiones por tipo
             if (obs.tipo === 'pincho') {
                 if (
-                    cubo.x + 8 < obs.x + 35 &&
-                    cubo.x + cubo.ancho - 8 > obs.x &&
-                    cubo.y + 8 < sueloY + 40 &&
+                    cubo.x + 10 < obs.x + 35 &&
+                    cubo.x + cubo.ancho - 10 > obs.x &&
+                    cubo.y + 10 < sueloY + 40 &&
                     cubo.y + cubo.alto > sueloY
                 ) {
                     gameOver = true;
@@ -197,19 +195,19 @@
             else if (obs.tipo === 'bloque') {
                 const bloqueY = sueloY + 40 - obs.alto;
                 if (
-                    cubo.x + cubo.ancho > obs.x &&
-                    cubo.x < obs.x + 50 &&
+                    cubo.x + cubo.ancho > obs.x + 5 &&
+                    cubo.x < obs.x + 45 &&
                     cubo.y + cubo.alto > bloqueY &&
                     cubo.y < sueloY + 40
                 ) {
                     // Caer arriba de la plataforma
-                    if (cubo.vy >= 0 && cubo.y + cubo.alto - cubo.vy <= bloqueY + 12) {
+                    if (cubo.vy >= 0 && cubo.y + cubo.alto - cubo.vy <= bloqueY + 16) {
                         cubo.y = bloqueY - cubo.alto;
                         cubo.vy = 0;
                         cubo.enSuelo = true;
-                        enPlataforma = true;
+                        pisandoPlataforma = true;
                     } else {
-                        gameOver = true; // Choque lateral
+                        gameOver = true; // Pared frontal
                     }
                 }
             }
@@ -219,6 +217,10 @@
                 }
             }
         });
+
+        if (!pisandoPlataforma && cubo.y < sueloY) {
+            cubo.enSuelo = false;
+        }
     }
 
     function dibujar() {
@@ -237,7 +239,7 @@
         ctx.lineTo(canvas.width, sueloY + 40);
         ctx.stroke();
 
-        // Renderizar Obstáculos del Mapa
+        // Renderizar Obstáculos
         obstaculos.forEach(obs => {
             if (obs.x > -100 && obs.x < canvas.width + 100) {
                 if (obs.tipo === 'pincho') {
@@ -281,7 +283,7 @@
         }
 
         // Progreso %
-        const porcentaje = Math.min(100, Math.floor((avanceNivel / 4700) * 100));
+        const porcentaje = Math.min(100, Math.floor((avanceNivel / 4600) * 100));
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 20px Arial';
         ctx.textAlign = 'left';
@@ -326,7 +328,6 @@
         gameOver = false;
         victoria = false;
         
-        // Clonar mapa del nivel
         obstaculos = mapaNivelOriginal.map(item => ({
             ...item,
             posXOriginal: item.x,
