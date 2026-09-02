@@ -27,6 +27,7 @@
             max-width: 800px;
             aspect-ratio: 16 / 9;
             box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+            cursor: pointer;
         }
 
         canvas {
@@ -47,18 +48,43 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // Carga de imágenes con los nombres exactos de tu GitHub
+    // Carga de imágenes
     const imgFondo = new Image(); imgFondo.src = 'fondo.jpeg.jpeg';
     const imgJugador = new Image(); imgJugador.src = 'cubo.jpeg.jpeg';
     const imgPincho = new Image(); imgPincho.src = 'pincho.jpeg.jpeg';
 
-    // Sistema de Audio
+    // Sistema de Música de Fondo (Sintetizador Web Audio)
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     let audioCtx;
+    let musicaIniciada = false;
 
-    function initAudio() {
+    function reproducirMusica() {
         if (!audioCtx) audioCtx = new AudioCtx();
         if (audioCtx.state === 'suspended') audioCtx.resume();
+        if (musicaIniciada) return;
+        
+        musicaIniciada = true;
+        
+        // Secuencia de notas estilo Geometry Dash (8-bit)
+        const notas = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
+        let paso = 0;
+
+        setInterval(() => {
+            if (gameOver || !juegoIniciado) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(notas[paso % notas.length], audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+                paso++;
+            } catch(e){}
+        }, 150);
     }
 
     // Variables del juego
@@ -82,18 +108,18 @@
     let obstaculos = [];
     let frames = 0;
 
-    // Controles (Teclado, Mouse y Pantalla Táctil)
-    document.addEventListener('keydown', (e) => {
+    // Controles
+    window.addEventListener('keydown', (e) => {
         if (e.code === 'Space') interactuar();
     });
-    canvas.addEventListener('mousedown', interactuar);
-    canvas.addEventListener('touchstart', (e) => {
+    document.getElementById('gameContainer').addEventListener('mousedown', interactuar);
+    document.getElementById('gameContainer').addEventListener('touchstart', (e) => {
         e.preventDefault();
         interactuar();
     });
 
     function interactuar() {
-        initAudio();
+        reproducirMusica();
         if (!juegoIniciado || gameOver) {
             reiniciarJuego();
             return;
@@ -103,7 +129,6 @@
             cubo.vy = cubo.fuerzaSalto;
             cubo.enSuelo = false;
         } else {
-            // Activar salto extra al tocar una esfera amarilla en el aire
             obstaculos.forEach(obs => {
                 if (obs.tipo === 'esfera' && !obs.usada) {
                     if (colisionConObjeto(cubo, obs)) {
@@ -137,7 +162,7 @@
         if (!juegoIniciado || gameOver) return;
 
         frames++;
-        if (frames % 100 === 0) {
+        if (frames % 90 === 0) {
             crearObstaculo();
         }
 
@@ -145,39 +170,37 @@
         cubo.vy += cubo.gravedad;
         cubo.y += cubo.vy;
 
-        // Colisión con el suelo principal
+        // Suelo principal
         if (cubo.y >= sueloY) {
             cubo.y = sueloY;
             cubo.vy = 0;
             cubo.enSuelo = true;
         }
 
-        // Mover Obstáculos y detectar impacto
-        obstaculos.forEach((obs, index) => {
-            obs.x -= 5;
+        // Mover Obstáculos y colisiones
+        for (let i = obstaculos.length - 1; i >= 0; i--) {
+            let obs = obstaculos[i];
+            obs.x -= 6;
 
             if (colisionConObjeto(cubo, obs)) {
                 if (obs.tipo === 'pinchoSuelo' || obs.tipo === 'pinchoTecho') {
                     gameOver = true;
                 } else if (obs.tipo === 'bloque') {
-                    // Caer sobre la plataforma del bloque
-                    if (cubo.vy > 0 && (cubo.y + cubo.alto - cubo.vy) <= obs.y) {
+                    if (cubo.vy > 0 && (cubo.y + cubo.alto - cubo.vy) <= obs.y + 10) {
                         cubo.y = obs.y - cubo.alto;
                         cubo.vy = 0;
                         cubo.enSuelo = true;
                     } else {
-                        // Chocar contra el lateral
                         gameOver = true;
                     }
                 }
             }
 
-            // Eliminar obstáculos fuera de pantalla y sumar puntos
             if (obs.x + obs.ancho < 0) {
-                obstaculos.splice(index, 1);
+                obstaculos.splice(i, 1);
                 score++;
             }
-        });
+        }
     }
 
     function colisionConObjeto(r1, r2) {
@@ -190,12 +213,12 @@
     function dibujar() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Renderizar Fondo
-        if (imgFondo.complete) {
+        // Fondo
+        if (imgFondo.complete && imgFondo.naturalWidth !== 0) {
             ctx.drawImage(imgFondo, 0, 0, canvas.width, canvas.height);
         }
 
-        // Renderizar Suelo Neon
+        // Línea Neon
         ctx.strokeStyle = '#00ffff';
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -203,21 +226,42 @@
         ctx.lineTo(canvas.width, sueloY + 40);
         ctx.stroke();
 
-        // Renderizar Jugador
-        if (imgJugador.complete) {
+        // Personaje
+        if (imgJugador.complete && imgJugador.naturalWidth !== 0) {
             ctx.drawImage(imgJugador, cubo.x, cubo.y, cubo.ancho, cubo.alto);
+        } else {
+            ctx.fillStyle = '#00ffff';
+            ctx.fillRect(cubo.x, cubo.y, cubo.ancho, cubo.alto);
         }
 
-        // Renderizar Obstáculos
+        // Obstáculos
         obstaculos.forEach(obs => {
             if (obs.tipo === 'pinchoSuelo') {
-                if (imgPincho.complete) ctx.drawImage(imgPincho, obs.x, obs.y, obs.ancho, obs.alto);
+                if (imgPincho.complete && imgPincho.naturalWidth !== 0) {
+                    ctx.drawImage(imgPincho, obs.x, obs.y, obs.ancho, obs.alto);
+                } else {
+                    ctx.fillStyle = '#ff0055';
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x, obs.y + obs.alto);
+                    ctx.lineTo(obs.x + obs.ancho / 2, obs.y);
+                    ctx.lineTo(obs.x + obs.ancho, obs.y + obs.alto);
+                    ctx.fill();
+                }
             } 
             else if (obs.tipo === 'pinchoTecho') {
                 ctx.save();
                 ctx.translate(obs.x + obs.ancho / 2, obs.y + obs.alto / 2);
                 ctx.scale(1, -1);
-                if (imgPincho.complete) ctx.drawImage(imgPincho, -obs.ancho / 2, -obs.alto / 2, obs.ancho, obs.alto);
+                if (imgPincho.complete && imgPincho.naturalWidth !== 0) {
+                    ctx.drawImage(imgPincho, -obs.ancho / 2, -obs.alto / 2, obs.ancho, obs.alto);
+                } else {
+                    ctx.fillStyle = '#ff0055';
+                    ctx.beginPath();
+                    ctx.moveTo(-obs.ancho / 2, -obs.alto / 2);
+                    ctx.lineTo(0, obs.alto / 2);
+                    ctx.lineTo(obs.ancho / 2, -obs.alto / 2);
+                    ctx.fill();
+                }
                 ctx.restore();
             } 
             else if (obs.tipo === 'bloque') {
@@ -238,27 +282,32 @@
             }
         });
 
-        // Interfaz de Usuario / Score
+        // Score e Instrucciones
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 20px Arial';
         ctx.textAlign = 'left';
-        ctx.fillText("SCORE: " + score, 20, 30);
+        ctx.fillText("SCORE: " + score, 20, 35);
 
         if (!juegoIniciado) {
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '24px Arial';
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00ffff';
+            ctx.font = 'bold 28px Arial';
             ctx.textAlign = 'center';
-            ctx.fillText("¡Toca la pantalla para empezar!", canvas.width / 2, canvas.height / 2);
+            ctx.fillText("¡HACÉ CLIC O TOCA PARA EMPEZAR!", canvas.width / 2, canvas.height / 2);
         } else if (gameOver) {
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#ff007f';
             ctx.font = 'bold 40px Arial';
             ctx.textAlign = 'center';
             ctx.fillText("¡GAME OVER!", canvas.width / 2, canvas.height / 2);
-            ctx.font = '18px Arial';
+            ctx.font = '20px Arial';
             ctx.fillStyle = '#ffffff';
-            ctx.fillText("Toca para volver a intentar", canvas.width / 2, canvas.height / 2 + 40);
+            ctx.fillText("Hacé clic para volver a intentar", canvas.width / 2, canvas.height / 2 + 40);
         }
 
+        actualizar();
         requestAnimationFrame(dibujar);
     }
 
@@ -273,7 +322,7 @@
         juegoIniciado = true;
     }
 
-    // Iniciar bucle de renderizado
+    // Iniciar bucle principal
     dibujar();
 </script>
 
